@@ -35,7 +35,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.init_screen()
 
         # translate unit for plot title
-        self.geo.unit_names = [r'2$\theta$', r'$d_{space}$', r'$q_{space}$', r'$sin(\theta)/\lambda$']
+        self.geo.unit_names = ['2-Theta', 'd(space)', 'q(space)', 'sin(Theta)/lambda']
         if self.geo.unit >= len(self.geo.unit_names):
             print(f'Error: Valid geo.unit range is from 0 to {len(self.geo.unit_names)-1}, geo.unit={self.geo.unit}')
             raise SystemExit
@@ -75,6 +75,13 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             self.set_menu_action(ref_action, self.change_reference, ref_name)
             menu_ref.addAction(ref_action)
 
+        menu_unit = menuBar.addMenu('Units')
+        for unit_index, unit_name in enumerate(self.geo.unit_names):
+            print(unit_name)
+            unit_action = QtWidgets.QAction(unit_name, self)
+            self.set_menu_action(unit_action, self.change_units, unit_index)
+            menu_unit.addAction(unit_action)
+
     def set_menu_action(self, action, target, *args):
         action.triggered.connect(lambda: target(*args))
 
@@ -87,6 +94,10 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.det = self.get_specs_det(self.detectors, det_name, det_size)
         self.ax.clear()
         self.init_screen()
+
+    def change_units(self, unit_index):
+        self.geo.unit = unit_index
+        self.draw_contours()
 
     def init_par(self, file_dump, force_write):
         # fetch the geometry, detector, plot specifications and limits

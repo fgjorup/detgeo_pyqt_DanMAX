@@ -5,13 +5,21 @@ from PyQt5 import QtWidgets, QtCore, QtGui, uic
 from contourpy import contour_generator
 from pyFAI import calibrant
 
+###########################################
+# - stylesheet qframe (?)
+# - revisit code
+# - check causality
+###########################################
 
 class MainWindow(pg.QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
         file_dump = os.path.join(os.path.dirname(__file__), 'settings.json')
-        self.init_par(file_dump, force_write = True)
+        # save parameters to file
+        # - save_default: overwrite existing file with defaults
+        # - force_write: overwrite existing file after load
+        self.init_par(file_dump, save_default=True, force_write=True)
 
         # import pyFAI if reference contours are enabled
         self.geo.pyFAI_calibrant = calibrant
@@ -27,20 +35,18 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         
         # get the detector specs
         self.detectors = self.get_det_library()
+
+        # pick current detector
         self.det = self.get_specs_det(self.detectors, self.geo.det_type, self.geo.det_size)
         
         # add the plot to the layout
         self.ax = pg.plot()
         self.layout.addWidget(self.ax)
-        self.init_screen()
 
-        # translate unit for plot title
-        self.geo.unit_names = ['2-Theta', 'd(space)', 'q(space)', 'sin(Theta)/lambda']
-        if self.geo.unit >= len(self.geo.unit_names):
-            print(f'Error: Valid geo.unit range is from 0 to {len(self.geo.unit_names)-1}, geo.unit={self.geo.unit}')
-            raise SystemExit
+        # initialize the detector screen
+        self.init_screen()
         
-        self.setWindowTitle(self.det.name)
+        # populate the menus with detectors, references and units
         self.init_menus()
 
         self.sliderWidget = SliderWidget(self, self.geo, self.plo, self.lmt)
@@ -54,6 +60,15 @@ class MainWindow(pg.QtWidgets.QMainWindow):
                     background: #aad3d3d3;
                 }
             ''')
+
+    def add_unit_label(self):
+        font = QtGui.QFont()
+        font.setPixelSize(self.plo.unit_label_size)
+        self.unit_label = pg.TextItem(anchor=(0.0,0.0), color=self.plo.unit_label_color, fill=self.plo.unit_label_fill)
+        self.unit_label.setText(self.geo.unit_names[self.geo.unit])
+        self.unit_label.setFont(font)
+        self.ax.addItem(self.unit_label)
+        self.unit_label.setPos(-self.plo.xdim, self.plo.ydim)
 
     def init_menus(self):
         menuBar = self.menuBar()
@@ -77,7 +92,6 @@ class MainWindow(pg.QtWidgets.QMainWindow):
 
         menu_unit = menuBar.addMenu('Units')
         for unit_index, unit_name in enumerate(self.geo.unit_names):
-            print(unit_name)
             unit_action = QtWidgets.QAction(unit_name, self)
             self.set_menu_action(unit_action, self.change_units, unit_index)
             menu_unit.addAction(unit_action)
@@ -94,27 +108,12 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.det = self.get_specs_det(self.detectors, det_name, det_size)
         self.ax.clear()
         self.init_screen()
+        self.sliderWidget.center_frame()
 
     def change_units(self, unit_index):
         self.geo.unit = unit_index
+        self.unit_label.setText(self.geo.unit_names[unit_index])
         self.draw_contours()
-
-    def init_par(self, file_dump, force_write):
-        # fetch the geometry, detector, plot specifications and limits
-        # load the defaults
-        # geo: geometry and detector specs
-        self.geo = self.get_specs_geo()
-        # plo: plot details
-        self.plo = self.get_specs_plo()
-        # lmt: geometry limits
-        self.lmt = self.get_specs_lmt()
-        # file name to store current settings
-        # if file_dump doesn't exists, make a dump
-        if not os.path.exists(file_dump) or force_write:
-            self.save_par(file_dump)
-        # if it exists load parameters
-        else:
-            self.load_par(file_dump)
 
     def init_screen(self):
         # init the plot for contours and beam center
@@ -164,8 +163,14 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # generate contour levels
         self.plo.cont_levels = np.linspace(self.plo.cont_tth_min, self.plo.cont_tth_max, self.plo.cont_tth_num)
 
+        # name the window
+        self.setWindowTitle(self.det.name)
+
         # build detector modules
         self.build_detector()
+
+        # add unit label
+        self.add_unit_label()
 
         # create cones and draw contour lines
         self.draw_contours()
@@ -221,6 +226,12 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         #  - this is what pyFAI understands
         geo.ref_pyFAI = ['None', 'LaB6', 'Si', 'CeO2']
 
+        # translate unit for plot title
+        geo.unit_names = ['2\U0001D6F3 [\u00B0]', 'd [\u212B\u207B\u00B9]', 'q [\u212B]', 'sin(\U0001D6F3)/\U0001D706 [\u212B]']
+        if geo.unit >= len(geo.unit_names):
+            print(f'Error: Valid geo.unit range is from 0 to {len(geo.unit_names)-1}, geo.unit={geo.unit}')
+            raise SystemExit
+        
         return geo
 
     def get_specs_plo(self):
@@ -244,7 +255,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         plo.cont_ref_alpha = 0.25           # [float]  Reference contour alpha
         plo.cont_ref_color = 'gray'         # [color]  Reference contour color
         plo.cont_ref_lw = 5.0               # [float]  Reference contour linewidth
-        plo.cont_ref_num = 24               # [int]    Number of reference contours
+        plo.cont_ref_num = 48               # [int]    Number of reference contours
         # - module section - 
         plo.module_alpha = 0.20             # [float]  Detector module alpha
         plo.module_color = 'gray'           # [color]  Detector module color
@@ -252,6 +263,9 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         plo.cont_reso_min = 50              # [int]    Minimum contour steps
         plo.cont_reso_max = 500             # [int]    Maximum contour steps
         plo.plot_size = 768                 # [int]    Plot size, px
+        plo.unit_label_size = 16            # [int]    Label size, px
+        plo.unit_label_color = 'gray'       # [str]    Label color
+        plo.unit_label_fill = 'white'       # [str]    Label fill color
         plo.plot_color = 0.35               # [float]  Button color from colormap (0.0 - 1.0)
                                             # [str]    Button color e.g. '#1f77b4'
         plo.action_ener = True              # [bool]   Show energy slider
@@ -369,6 +383,15 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             'siz' : {'4M':(2,4)},
             }
         
+        # make file dump
+        file_dump = os.path.join(os.path.dirname(__file__), 'detectors.json')
+        if not os.path.exists(file_dump):
+            with open(file_dump, 'w') as wf:
+                json.dump(detectors, wf, indent=4)
+        else:
+            with open(file_dump, 'r') as of:
+                detectors = json.load(of)
+        
         return detectors
 
     def build_detector(self):
@@ -462,7 +485,6 @@ class MainWindow(pg.QtWidgets.QMainWindow):
                 self.plo.contours['labels'][_n].setVisible(False)
                 self.plo.contours['exp'][_n].setData([])
                 self.plo.contours['exp'][_n].clear()
-                #break
     
     def draw_reference(self):
         # calculate the offset of the contours resulting from yoff and rotation
@@ -557,6 +579,26 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             self.plo.cont_ref_dsp = np.array(self.geo.pyFAI_calibrant.get_calibrant(self.geo.reference).get_dSpacing()[:self.plo.cont_ref_num])
             self.draw_reference()
 
+    def init_par(self, file_dump, save_default, force_write):
+        # fetch the geometry, detector, plot specifications and limits
+        # load the defaults
+        # geo: geometry and detector specs
+        self.geo = self.get_specs_geo()
+        # plo: plot details
+        self.plo = self.get_specs_plo()
+        # lmt: geometry limits
+        self.lmt = self.get_specs_lmt()
+        # file name to store current settings
+        # if file_dump doesn't exists, make a dump
+        if not os.path.exists(file_dump) or save_default:
+            self.save_par(file_dump)
+        # if it exists load parameters
+        else:
+            self.load_par(file_dump)
+        
+        if force_write:
+            self.save_par(file_dump)
+
     def save_par(self, save_as):
         # Writing geo as dict to file
         with open(save_as, 'w') as wf:
@@ -585,7 +627,10 @@ class SliderWidget(QtWidgets.QFrame):
         self.leaveEvent = self.toggle_panel
         self.enterEvent = self.toggle_panel
         frame = QtWidgets.QFrame()
-        frame.setFixedHeight(10)
+        frame.setFixedHeight(12)
+        self.box_width_add = 60
+        layout.addWidget(frame)
+
         frame.setStyleSheet('''
             QFrame {
                 border: 1px solid darkGray;
@@ -594,18 +639,17 @@ class SliderWidget(QtWidgets.QFrame):
             }
         ''')
 
-        layout.addWidget(frame)
-
         self.box = QtWidgets.QGroupBox()
         layout.addWidget(self.box)
         self.box.setHidden(True)
         self.box_toggle = False
         self.box_width_dynamic = 0
-        self.box_height_show = 200
-        self.box_height_hide = 10
+        self.box_height_show = int(parent.size().height()/3)
+        self.box_height_hide = int(frame.size().height())
 
         volumeLayout = QtWidgets.QGridLayout()
         volumeLayout.setContentsMargins(0, 0, 0, 0)
+        volumeLayout.setRowStretch(1,10)
         self.box.setLayout(volumeLayout)
         
         _idx = 0
@@ -614,61 +658,65 @@ class SliderWidget(QtWidgets.QFrame):
             sli_ener.valueChanged.connect(lambda: parent.update_plot('ener', sli_ener.value()))
             sli_ener.valueChanged.connect(lambda: self.update_slider(lab_ener_value, sli_ener.value()))
             self.set_slider(sli_ener, self.geo.ener, lmt.ener_min, lmt.ener_max, lmt.ener_stp)
-            self.box_width_dynamic += 75
+            self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_dist:
             sli_dist, lab_dist_name, lab_dist_value = self.add_slider(volumeLayout, 'Distance\n[mm]', 'Distance [mm] ', _idx)
             sli_dist.valueChanged.connect(lambda: parent.update_plot('dist', sli_dist.value()))
             sli_dist.valueChanged.connect(lambda: self.update_slider(lab_dist_value, sli_dist.value()))
             self.set_slider(sli_dist, self.geo.dist, lmt.dist_min, lmt.dist_max, lmt.dist_stp)
-            self.box_width_dynamic += 75
+            self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_yoff:
             sli_yoff, lab_yoff_name, lab_yoff_value = self.add_slider(volumeLayout, 'Y offset\n[mm]', 'Y offset [mm] ', _idx)
             sli_yoff.valueChanged.connect(lambda: parent.update_plot('yoff', sli_yoff.value()))
             sli_yoff.valueChanged.connect(lambda: self.update_slider(lab_yoff_value, sli_yoff.value()))
             self.set_slider(sli_yoff, self.geo.yoff, lmt.yoff_min, lmt.yoff_max, lmt.yoff_stp)
-            self.box_width_dynamic += 75
+            self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_xoff:
             sli_xoff, lab_xoff_name, lab_xoff_value = self.add_slider(volumeLayout, 'X offset\n[mm]', 'X offset [mm] ', _idx)
             sli_xoff.valueChanged.connect(lambda: parent.update_plot('xoff', sli_xoff.value()))
             sli_xoff.valueChanged.connect(lambda: self.update_slider(lab_xoff_value, sli_xoff.value()))
             self.set_slider(sli_xoff, self.geo.xoff, lmt.xoff_min, lmt.xoff_max, lmt.xoff_stp)
-            self.box_width_dynamic += 75
+            self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_tilt:
             sli_tilt, lab_tilt_name, lab_tilt_value = self.add_slider(volumeLayout, 'Tilt\n[˚]', 'Tilt [˚] ', _idx)
             sli_tilt.valueChanged.connect(lambda: parent.update_plot('tilt', sli_tilt.value()))
             sli_tilt.valueChanged.connect(lambda: self.update_slider(lab_tilt_value, sli_tilt.value()))
             self.set_slider(sli_tilt, self.geo.tilt, lmt.tilt_min, lmt.tilt_max, lmt.tilt_stp)
-            self.box_width_dynamic += 75
+            self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_rota:
             sli_rota, lab_rota_name, lab_rota_value = self.add_slider(volumeLayout, 'Rotation\n[˚]', 'Rotation [˚] ', _idx)
             sli_rota.valueChanged.connect(lambda: parent.update_plot('rota', sli_rota.value()))
             sli_rota.valueChanged.connect(lambda: self.update_slider(lab_rota_value, sli_rota.value()))
             self.set_slider(sli_rota, self.geo.rota, lmt.rota_min, lmt.rota_max, lmt.rota_stp)
-            self.box_width_dynamic += 75
+            self.box_width_dynamic += self.box_width_add
             _idx += 1
 
         self.resize(self.box_width_dynamic, self.box_height_hide)
-        self.move(int((parent.size().width()-self.box_width_dynamic)/2),0)
+        self.center_frame()
+
+    def center_frame(self):
+        self.move(int((self.parent().size().width()-self.box_width_dynamic)/2),0)
 
     def update_slider(self, label, value):
         label.setText(str(int(value)))
 
     def add_slider(self, layout, label, hint, idx):
-        slider = QtWidgets.QSlider(QtCore.Qt.Vertical)
-        slider.setValue(999)
-        slider.setToolTip(hint)
-        layout.addWidget(slider, 1, idx, QtCore.Qt.AlignCenter)
         label_name = QtWidgets.QLabel(label)
         label_name.setToolTip(hint)
         label_name.setAlignment(QtCore.Qt.AlignCenter)
         layout.addWidget(label_name, 0, idx, QtCore.Qt.AlignCenter)
+        slider = QtWidgets.QSlider(QtCore.Qt.Vertical)
+        slider.setValue(999)
+        slider.setToolTip(hint)
+        layout.addWidget(slider, 1, idx, QtCore.Qt.AlignHCenter)
         label_value = QtWidgets.QLabel()
         label_value.setToolTip(hint)
+        label_value.setAlignment(QtCore.Qt.AlignCenter)
         layout.addWidget(label_value, 2, idx, QtCore.Qt.AlignCenter)
         return slider, label_name, label_value
 
@@ -689,6 +737,16 @@ class SliderWidget(QtWidgets.QFrame):
         else:
             pass
 
+    #def fade_in(self):
+    #    eff = QtWidgets.QGraphicsOpacityEffect()
+    #    self.box.setGraphicsEffect(eff)
+    #    ani = QtCore.QPropertyAnimation(eff, b"opacity")
+    #    ani.setDuration(350)
+    #    ani.setStartValue(0)
+    #    ani.setEndValue(1)
+    #    ani.setEasingCurve(QtCore.QEasingCurve.InBack)
+    #    ani.start(QtCore.QPropertyAnimation.DeleteWhenStopped)
+
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
             self.startPos = event.pos()
@@ -698,6 +756,7 @@ class SliderWidget(QtWidgets.QFrame):
         if event.buttons() == QtCore.Qt.LeftButton:
             delta = event.pos() - self.startPos
             self.move(self.pos() + delta)
+            self.box_toggle = True
 
 def main():
     pg.setConfigOptions(background='w', antialias=True)

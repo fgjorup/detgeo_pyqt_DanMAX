@@ -6,13 +6,15 @@
  - It uses [python3](https://www.python.org), [numpy](https://numpy.org), [pyqt6](https://www.riverbankcomputing.com/software/pyqt/), [pyqtgraph](https://pyqtgraph.readthedocs.io/en/latest/), [contourpy](https://contourpy.readthedocs.io/en/v1.0.7/) and [pyFAI](https://pyfai.readthedocs.io/en/v2023.1/).
 
 ## Short how-to:
- - Choose detector and model from the menu.
- - Pick reference from the menu to plot its contours (pyFAI).
- - Use the units you are the most comfortable with.
+ - Choose a detector and a model from the _Detector_ menu.
+ - Pick a reference from the _Reference_ menu to plot its contours (pyFAI).
+ - Use the units from the _Units_ menu you are the most comfortable with.
  - Hover over the grey line at the top to show the sliders.
   - Click it to make it stay open.
   - Move it around but don't lose it!
  - Drag the sliders to change energy and geometry.
+ - Edit the _settings.json_ file to suit your needs.
+ - Add all the missing detectors to the _detectors.json_ file.
 
 ## Latest update:
   - 2023-04-05 Update: uses pyqt6, pyqtgraph and contourpy, dropped matplotlib backend

@@ -5,11 +5,18 @@ from PyQt5 import QtWidgets, QtCore, QtGui, uic
 from contourpy import contour_generator
 from pyFAI import calibrant
 
-###########################################
+#################################################
 # - stylesheet qframe (?)
-# - revisit code
+# - segmented contour lines are not
+#   displayed properly, only one segment
+#   is drawn (we pick the last).
+#   this happens when the grid is not large
+#   enough to host the full contour.
+#   To compensate, the grid gets a multiplier
+#   to reduce segmentation, multiplier = 1.5
 # - check causality
-###########################################
+# - find copy paste bugs from matplotlib version
+#################################################
 
 class MainWindow(pg.QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
@@ -19,7 +26,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # save parameters to file
         # - save_default: overwrite existing file with defaults
         # - force_write: overwrite existing file after load
-        self.init_par(file_dump, save_default=True, force_write=True)
+        self.init_par(file_dump, save_default=False, force_write=True)
 
         # import pyFAI if reference contours are enabled
         self.geo.pyFAI_calibrant = calibrant
@@ -43,6 +50,12 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.ax = pg.plot()
         self.layout.addWidget(self.ax)
 
+        # translate unit for plot title
+        self.geo.unit_names = ['2\U0001D6F3 [\u00B0]', 'd [\u212B\u207B\u00B9]', 'q [\u212B]', 'sin(\U0001D6F3)/\U0001D706 [\u212B]']
+        if self.geo.unit >= len(self.geo.unit_names):
+            print(f'Error: Valid geo.unit range is from 0 to {len(self.geo.unit_names)-1}, geo.unit={self.geo.unit}')
+            raise SystemExit
+        
         # initialize the detector screen
         self.init_screen()
         
@@ -79,9 +92,9 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             d_menu = QtWidgets.QMenu(d, self)
             d_menu.setStatusTip('')
             menu_det.addMenu(d_menu)
-            for t in self.detectors[d]['siz']:
-                det_action = QtWidgets.QAction(t, self)
-                self.set_menu_action(det_action, self.change_detector, d, t)
+            for s in self.detectors[d]['size']:
+                det_action = QtWidgets.QAction(s, self)
+                self.set_menu_action(det_action, self.change_detector, d, s)
                 d_menu.addAction(det_action)
         
         menu_ref = menuBar.addMenu('Reference')
@@ -122,7 +135,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.ax.getPlotItem().hideAxis('bottom')
         self.ax.getPlotItem().hideAxis('left')
         # disable pan/zoom
-        self.ax.setMouseEnabled(x=False, y=False)
+        #self.ax.setMouseEnabled(x=False, y=False)
         # disable right click  context menu
         self.ax.setMenuEnabled(False)
     
@@ -158,7 +171,8 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.resize(int(self.plo.plot_size*self.plo.xdim/self.plo.ydim), self.plo.plot_size)
 
         # scale contour grid to detector size
-        self.plo.cont_grid_max = int(np.ceil(max(self.plo.xdim, self.plo.ydim)))
+        multiplier = 1.5
+        self.plo.cont_grid_max = int(np.ceil(max(self.plo.xdim*multiplier, self.plo.ydim*multiplier)))
         
         # generate contour levels
         self.plo.cont_levels = np.linspace(self.plo.cont_tth_min, self.plo.cont_tth_max, self.plo.cont_tth_num)
@@ -213,24 +227,11 @@ class MainWindow(pg.QtWidgets.QMainWindow):
                                 #          1: d-spacing
                                 #          2: q-space
                                 #          3: sin(theta)/lambda
-        geo.reference = 'None'  # [0-3]  Plot reference contours
-                                #          0: None
-                                #          1: LaB6
-                                #          2: Si
-                                #          3: CeO2
+        geo.reference = 'None'  # [str]  Plot reference contours
+                                #          pick from list below
         # What standards should be available as reference
         # The d spacings will be imported from pyFAI
-        # and we use 2 lists whose ORDER must match!
-        #  - this is the display name
-        geo.ref_names = ['None', r'$LaB_6$', r'$Si$', r'$CeO_2$']
-        #  - this is what pyFAI understands
         geo.ref_pyFAI = ['None', 'LaB6', 'Si', 'CeO2']
-
-        # translate unit for plot title
-        geo.unit_names = ['2\U0001D6F3 [\u00B0]', 'd [\u212B\u207B\u00B9]', 'q [\u212B]', 'sin(\U0001D6F3)/\U0001D706 [\u212B]']
-        if geo.unit >= len(geo.unit_names):
-            print(f'Error: Valid geo.unit range is from 0 to {len(geo.unit_names)-1}, geo.unit={geo.unit}')
-            raise SystemExit
         
         return geo
 
@@ -311,7 +312,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
                 print('Unknown detector type!')
                 raise SystemExit
             
-            if det_size not in detectors[det_type]['siz'].keys():
+            if det_size not in detectors[det_type]['size'].keys():
                 print('Unknown detector type/size combination!')
                 raise SystemExit
             
@@ -322,7 +323,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             det.hgp = detectors[det_type]['hgp']
             det.vgp = detectors[det_type]['vgp']
             det.cbh = detectors[det_type]['cbh']
-            det.hmn, det.vmn = detectors[det_type]['siz'][det_size]
+            det.hmn, det.vmn = detectors[det_type]['size'][det_size]
             det.name = f'{det_type} {det_size}'
 
             return det
@@ -342,10 +343,10 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             'hgp' : 7,       # [pix] Gap between modules (horizontal)
             'vgp' : 17,      # [pix] Gap between modules (vertical)
             'cbh' : 0,       # [mm]  Central beam hole
-            'siz' : {'300K':(1,3),'1M':(2,5),'2M':(3,8),'6M':(5,12)},
+            'size' : {'300K':(1,3),'1M':(2,5),'2M':(3,8),'6M':(5,12)},
             }
             ###############################
-            # Specifications for Pilatus3 #
+            # Specifications for Pilatus4 #
             ###############################
         detectors['PILATUS4'] = {
             'hms' : 75.0,    # [mm]  Module size (horizontal)
@@ -354,7 +355,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             'hgp' : 8,       # [pix] Gap between modules (horizontal)
             'vgp' : 12,      # [pix] Gap between modules (vertical)
             'cbh' : 0,       # [mm]  Central beam hole
-            'siz' : {'260K':(1,2),'800K':(2,3),'1M':(2,4),'1.5M':(3,4),'2M':(3,6),'3M':(4,6)}
+            'size' : {'260K':(1,2),'800K':(2,3),'1M':(2,4),'1.5M':(3,4),'2M':(3,6),'3M':(4,6)}
             }
         
             #############################
@@ -367,7 +368,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             'hgp' : 38,      # [pix] Gap between modules (horizontal)
             'vgp' : 12,      # [pix] Gap between modules (vertical)
             'cbh' : 0,       # [mm]  Central beam hole
-            'siz' : {'1M':(1,2),'4M':(2,4),'9M':(3,6),'16M':(4,8)},
+            'size' : {'1M':(1,2),'4M':(2,4),'9M':(3,6),'16M':(4,8)},
             }
         
             #############################
@@ -380,7 +381,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             'hgp' : 18,      # [pix] Gap between modules (horizontal)
             'vgp' : 27,      # [pix] Gap between modules (vertical)
             'cbh' : 3,       # [mm]  Central beam hole
-            'siz' : {'4M':(2,4)},
+            'size' : {'4M':(2,4)},
             }
         
         # make file dump
@@ -470,12 +471,15 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             # draw additional contours for normal incidence geometry
             X0, Y0 = np.meshgrid(_x1,_x2)
             Z0 = np.sqrt(X0**2+Y0**2)*_rat
-            X,Y,Z = self.geo_cone(X0, Y0, Z0, self.geo.rota, self.geo.tilt, self.geo.xoff, self.geo.yoff, self.geo.dist)
+            X,Y,Z = self.calc_cone(X0, Y0, Z0, self.geo.rota, self.geo.tilt, self.geo.xoff, self.geo.yoff, self.geo.dist)
             # don't draw contour lines that are out of bounds
             # make sure Z is large enough to draw the contour
             cont_gen = contour_generator(x=X, y=Y, z=Z)
             if np.max(Z) >= self.geo.dist:
                 cline = cont_gen.lines(self.geo.dist)[-1]
+                #if len(cont_gen.lines(self.geo.dist)) > 1:
+                #    print(cont_gen.lines(self.geo.dist))
+                #cline = np.vstack(cont_gen.lines(self.geo.dist))
                 self.plo.contours['exp'][_n].setData(cline, pen=pg.mkPen(self.plo.cont_cmap.map(_f, mode='qcolor'), width=self.plo.cont_geom_lw))
                 # label contour lines
                 self.plo.contours['labels'][_n].setText(f'{np.round(_units[self.geo.unit],2):.2f}', color=self.plo.cont_cmap.map(_f, mode='qcolor'))
@@ -521,7 +525,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             # use the offset adjusted value x1 to prepare the grid
             X0, Y0 = np.meshgrid(_x1,_x2)
             Z0 = np.sqrt(X0**2+Y0**2)*_rat
-            X,Y,Z = self.geo_cone(X0, Y0, Z0, self.geo.rota, self.geo.tilt, self.geo.xoff, self.geo.yoff, self.geo.dist)
+            X,Y,Z = self.calc_cone(X0, Y0, Z0, self.geo.rota, self.geo.tilt, self.geo.xoff, self.geo.yoff, self.geo.dist)
             # make sure Z is large enough to draw the contour
             cont_gen = contour_generator(x=X, y=Y, z=Z)
             if np.max(Z) >= self.geo.dist:
@@ -532,7 +536,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
                 self.plo.contours['ref'][_n].setData([])
                 self.plo.contours['ref'][_n].clear()
 
-    def geo_cone(self, X, Y, Z, rota, tilt, xoff, yoff, dist):
+    def calc_cone(self, X, Y, Z, rota, tilt, xoff, yoff, dist):
         # combined rotation, tilt 'movement' is compensated
         a = np.deg2rad(tilt) + np.deg2rad(rota)
         # rotate the sample around y
@@ -546,15 +550,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         comp = np.deg2rad(tilt) * dist
         return Y+xoff,X+comp-yoff,Z
 
-    def update_plot(self, nam, val):
-        ##################################################
-        # This is a sloppy and hacky way to achieve some #
-        #   interactivity without building a proper GUI  #
-        ##################################################
-        # this works with MacOS backend
-        # but seems to have problems with
-        # Tk and Qt Agg backends for which the
-        # radio buttons have to be pressed twice
+    def update_screen(self, nam, val):
         if nam == 'dist':
             self.geo.dist = float(val)
         elif nam == 'rota':
@@ -647,50 +643,50 @@ class SliderWidget(QtWidgets.QFrame):
         self.box_height_show = int(parent.size().height()/3)
         self.box_height_hide = int(frame.size().height())
 
-        volumeLayout = QtWidgets.QGridLayout()
-        volumeLayout.setContentsMargins(0, 0, 0, 0)
-        volumeLayout.setRowStretch(1,10)
-        self.box.setLayout(volumeLayout)
+        grid = QtWidgets.QGridLayout()
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setRowStretch(1,10)
+        self.box.setLayout(grid)
         
         _idx = 0
         if plo.action_ener:
-            sli_ener, lab_ener_name, lab_ener_value = self.add_slider(volumeLayout, 'Energy\n[keV]', 'Energy [keV] ', _idx)
-            sli_ener.valueChanged.connect(lambda: parent.update_plot('ener', sli_ener.value()))
+            sli_ener, lab_ener_name, lab_ener_value = self.add_slider(grid, 'Energy\n[keV]', 'Energy [keV] ', _idx)
+            sli_ener.valueChanged.connect(lambda: parent.update_screen('ener', sli_ener.value()))
             sli_ener.valueChanged.connect(lambda: self.update_slider(lab_ener_value, sli_ener.value()))
             self.set_slider(sli_ener, self.geo.ener, lmt.ener_min, lmt.ener_max, lmt.ener_stp)
             self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_dist:
-            sli_dist, lab_dist_name, lab_dist_value = self.add_slider(volumeLayout, 'Distance\n[mm]', 'Distance [mm] ', _idx)
-            sli_dist.valueChanged.connect(lambda: parent.update_plot('dist', sli_dist.value()))
+            sli_dist, lab_dist_name, lab_dist_value = self.add_slider(grid, 'Distance\n[mm]', 'Distance [mm] ', _idx)
+            sli_dist.valueChanged.connect(lambda: parent.update_screen('dist', sli_dist.value()))
             sli_dist.valueChanged.connect(lambda: self.update_slider(lab_dist_value, sli_dist.value()))
             self.set_slider(sli_dist, self.geo.dist, lmt.dist_min, lmt.dist_max, lmt.dist_stp)
             self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_yoff:
-            sli_yoff, lab_yoff_name, lab_yoff_value = self.add_slider(volumeLayout, 'Y offset\n[mm]', 'Y offset [mm] ', _idx)
-            sli_yoff.valueChanged.connect(lambda: parent.update_plot('yoff', sli_yoff.value()))
+            sli_yoff, lab_yoff_name, lab_yoff_value = self.add_slider(grid, 'Y offset\n[mm]', 'Y offset [mm] ', _idx)
+            sli_yoff.valueChanged.connect(lambda: parent.update_screen('yoff', sli_yoff.value()))
             sli_yoff.valueChanged.connect(lambda: self.update_slider(lab_yoff_value, sli_yoff.value()))
             self.set_slider(sli_yoff, self.geo.yoff, lmt.yoff_min, lmt.yoff_max, lmt.yoff_stp)
             self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_xoff:
-            sli_xoff, lab_xoff_name, lab_xoff_value = self.add_slider(volumeLayout, 'X offset\n[mm]', 'X offset [mm] ', _idx)
-            sli_xoff.valueChanged.connect(lambda: parent.update_plot('xoff', sli_xoff.value()))
+            sli_xoff, lab_xoff_name, lab_xoff_value = self.add_slider(grid, 'X offset\n[mm]', 'X offset [mm] ', _idx)
+            sli_xoff.valueChanged.connect(lambda: parent.update_screen('xoff', sli_xoff.value()))
             sli_xoff.valueChanged.connect(lambda: self.update_slider(lab_xoff_value, sli_xoff.value()))
             self.set_slider(sli_xoff, self.geo.xoff, lmt.xoff_min, lmt.xoff_max, lmt.xoff_stp)
             self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_tilt:
-            sli_tilt, lab_tilt_name, lab_tilt_value = self.add_slider(volumeLayout, 'Tilt\n[˚]', 'Tilt [˚] ', _idx)
-            sli_tilt.valueChanged.connect(lambda: parent.update_plot('tilt', sli_tilt.value()))
+            sli_tilt, lab_tilt_name, lab_tilt_value = self.add_slider(grid, 'Tilt\n[˚]', 'Tilt [˚] ', _idx)
+            sli_tilt.valueChanged.connect(lambda: parent.update_screen('tilt', sli_tilt.value()))
             sli_tilt.valueChanged.connect(lambda: self.update_slider(lab_tilt_value, sli_tilt.value()))
             self.set_slider(sli_tilt, self.geo.tilt, lmt.tilt_min, lmt.tilt_max, lmt.tilt_stp)
             self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_rota:
-            sli_rota, lab_rota_name, lab_rota_value = self.add_slider(volumeLayout, 'Rotation\n[˚]', 'Rotation [˚] ', _idx)
-            sli_rota.valueChanged.connect(lambda: parent.update_plot('rota', sli_rota.value()))
+            sli_rota, lab_rota_name, lab_rota_value = self.add_slider(grid, 'Rotation\n[˚]', 'Rotation [˚] ', _idx)
+            sli_rota.valueChanged.connect(lambda: parent.update_screen('rota', sli_rota.value()))
             sli_rota.valueChanged.connect(lambda: self.update_slider(lab_rota_value, sli_rota.value()))
             self.set_slider(sli_rota, self.geo.rota, lmt.rota_min, lmt.rota_max, lmt.rota_stp)
             self.box_width_dynamic += self.box_width_add

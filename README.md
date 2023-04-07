@@ -17,7 +17,7 @@
 ## Latest update:
   - 2023-04-05 Update: uses pyqt6, pyqtgraph and contourpy, dropped matplotlib backend
 
-## Here's an example showing a rotated Eiger2 4M:
+## Here's an example showing a rotated EIGER2 4M:
 ![detgeo](Sample.png)
 
 ##### I hope this turns out to be useful for someone!

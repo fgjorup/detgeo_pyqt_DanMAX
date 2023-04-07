@@ -15,7 +15,7 @@
  - Drag the sliders to change energy and geometry.
 
 ## Latest update:
-  - 2023-03-23 Update: uses pyqt6 and pyqtgraph, dropped matplotlib backend
+  - 2023-04-05 Update: uses pyqt6 and pyqtgraph, dropped matplotlib backend
 
 ## Here's an example showing a rotated Eiger2 4M:
 ![detgeo](Sample.png)

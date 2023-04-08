@@ -348,6 +348,12 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             ###############################
             # Specifications for Pilatus4 #
             ###############################
+            #   THESE ARE GUESSED VALUES  #
+            #  PUT TOGETHER BECAUSE THEY  #
+            #  FIT WELL, TO PLAY AROUND   #
+            #  AND DO NOT REPRESENT THE   #
+            #     ACTUAL DIMENSIONS       #
+            ###############################
         detectors['PILATUS4'] = {
             'hms' : 75.0,    # [mm]  Module size (horizontal)
             'vms' : 39.0,    # [mm]  Module size (vertical)

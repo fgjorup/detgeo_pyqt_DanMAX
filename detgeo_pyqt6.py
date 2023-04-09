@@ -93,7 +93,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         lattice_type = ref.find_spacegroup().centring_type()
         lattice = ref.find_spacegroup().crystal_system_str()
         self.plo.cont_ref_dsp = list(map(float, calibrant.Cell(*cell, lattice=lattice, lattice_type=lattice_type).d_spacing(dmin=0.4).keys()))[::-1][:self.plo.cont_ref_num]
-        self.geo.reference = 'custom'
+        self.geo.reference = 'Custom'
         self.draw_reference()
 
     def dragEnterEvent(self, event):
@@ -177,7 +177,6 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.ax.setMenuEnabled(False)
     
         self.get_colormap()
-        self.get_reference()
 
         # container for contour lines
         self.plo.contours = {'exp':[], 'ref':[], 'labels':[]}
@@ -189,7 +188,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             self.ax.addItem(temp_label)
         
         # add empty plot per reference contour line
-        for _ in range(len(self.plo.cont_ref_dsp)):
+        for _ in range(self.plo.cont_ref_num):
             self.plo.contours['ref'].append(self.ax.plot(useCache=True, pxMode=True))
 
         # add beam center scatter plot
@@ -225,6 +224,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
 
         # create cones and draw contour lines
         self.draw_contours()
+        self.get_reference()
         self.draw_reference()
         
     def get_colormap(self):
@@ -240,8 +240,9 @@ class MainWindow(pg.QtWidgets.QMainWindow):
     
     def get_reference(self):
         if self.geo.reference != 'None':
-            # get the d spacings for the calibrtant from pyFAI
-            self.plo.cont_ref_dsp = np.array(calibrant.get_calibrant(self.geo.reference).get_dSpacing()[:self.plo.cont_ref_num])
+            if self.geo.reference != 'Custom':
+                # get the d spacings for the calibrtant from pyFAI
+                self.plo.cont_ref_dsp = np.array(calibrant.get_calibrant(self.geo.reference).get_dSpacing()[:self.plo.cont_ref_num])
         else:
             # set all d-spacings to -1
             self.plo.cont_ref_dsp = np.zeros(self.plo.cont_ref_num) -1
@@ -603,10 +604,8 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # re-calculate cones and re-draw contours
         self.draw_contours()
         # draw reference contours
-        if self.geo.reference != 'None':
-            # get the d spacings for the calibrtant from pyFAI
-            self.plo.cont_ref_dsp = np.array(calibrant.get_calibrant(self.geo.reference).get_dSpacing()[:self.plo.cont_ref_num])
-            self.draw_reference()
+        self.get_reference()
+        self.draw_reference()
 
     def init_par(self, file_dump, save_default, force_write):
         # fetch the geometry, detector, plot specifications and limits

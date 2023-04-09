@@ -4,32 +4,36 @@ import pyqtgraph as pg
 from PyQt6 import QtWidgets, QtCore, QtGui
 from contourpy import contour_generator
 from pyFAI import calibrant
+from gemmi import read_small_structure
 
-#################################################
+###########################################################
 # - stylesheet qframe (?)
 # - segmented contour lines are not
-#   displayed properly, only one segment
-#   is drawn (we pick the last).
-#   this happens when the grid is not large
-#   enough to host the full contour.
-#   To compensate, the grid gets a multiplier
-#   to reduce segmentation, multiplier = 1.5
+#   displayed properly, only one segment is drawn (we pick
+#   the last). This happens when the grid is not large
+#   enough to host the full contour. To compensate, the
+#   grid gets a multiplier to reduce segmentation,
+#   multiplier = 1.5
 # - check causality
 # - find copy paste bugs from matplotlib version
-#################################################
+###########################################################
 
 class MainWindow(pg.QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
+        # Drag-and-Drop cif-file
+        self.setAcceptDrops(True)
+        
         file_dump = os.path.join(os.path.dirname(__file__), 'settings.json')
         # save parameters to file
         # - save_default: overwrite existing file with defaults
         # - force_write: overwrite existing file after load
-        self.init_par(file_dump, save_default=False, force_write=True)
+        self.init_par(file_dump, save_default=True, force_write=True)
 
-        # import pyFAI if reference contours are enabled
-        self.geo.pyFAI_calibrant = calibrant
+        # What standards should be available as reference
+        # The d spacings will be imported from pyFAI
+        self.geo.ref_pyFAI = ['None'] + calibrant.names()
 
         # define grid layout
         self.layout = pg.QtWidgets.QGridLayout()
@@ -73,6 +77,28 @@ class MainWindow(pg.QtWidgets.QMainWindow):
                     background: #aad3d3d3;
                 }
             ''')
+
+    def read_file(self, fpath):
+        ref = read_small_structure(fpath)
+        cell = ref.cell.parameters
+        lattice_type = ref.find_spacegroup().centring_type()
+        lattice = ref.find_spacegroup().crystal_system_str()
+        self.plo.cont_ref_dsp = list(map(float, calibrant.Cell(*cell, lattice=lattice, lattice_type=lattice_type).d_spacing(dmin=0.4).keys()))[::-1][:self.plo.cont_ref_num]
+        self.geo.reference = 'custom'
+        self.draw_reference()
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        fpath = event.mimeData().urls()[0].toLocalFile()
+        if os.path.splitext(fpath)[1] == '.cif':
+            self.read_file(fpath)
+        else:
+            print(os.path.splitext(fpath))
 
     def add_unit_label(self):
         font = QtGui.QFont()
@@ -202,11 +228,11 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             self.plo.plot_handle_color = self.plo.plot_color
     
     def get_reference(self):
-        # get contour lines f contours are already selected (index is not 0, not None)
         if self.geo.reference != 'None':
             # get the d spacings for the calibrtant from pyFAI
-            self.plo.cont_ref_dsp = np.array(self.geo.pyFAI_calibrant.get_calibrant(self.geo.reference).get_dSpacing()[:self.plo.cont_ref_num])
+            self.plo.cont_ref_dsp = np.array(calibrant.get_calibrant(self.geo.reference).get_dSpacing()[:self.plo.cont_ref_num])
         else:
+            # set all d-spacings to -1
             self.plo.cont_ref_dsp = np.zeros(self.plo.cont_ref_num) -1
 
     def get_specs_geo(self):
@@ -228,11 +254,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
                                 #          2: q-space
                                 #          3: sin(theta)/lambda
         geo.reference = 'None'  # [str]  Plot reference contours
-                                #          pick from list below
-        # What standards should be available as reference
-        # The d spacings will be imported from pyFAI
-        geo.ref_pyFAI = ['None', 'LaB6', 'Si', 'CeO2']
-        
+                                #          pick from pyFAI
         return geo
 
     def get_specs_plo(self):
@@ -347,12 +369,6 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             }
             ###############################
             # Specifications for Pilatus4 #
-            ###############################
-            #   THESE ARE GUESSED VALUES  #
-            #  PUT TOGETHER BECAUSE THEY  #
-            #  FIT WELL, TO PLAY AROUND   #
-            #  AND DO NOT REPRESENT THE   #
-            #     ACTUAL DIMENSIONS       #
             ###############################
         detectors['PILATUS4'] = {
             'hms' : 75.0,    # [mm]  Module size (horizontal)
@@ -578,7 +594,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # draw reference contours
         if self.geo.reference != 'None':
             # get the d spacings for the calibrtant from pyFAI
-            self.plo.cont_ref_dsp = np.array(self.geo.pyFAI_calibrant.get_calibrant(self.geo.reference).get_dSpacing()[:self.plo.cont_ref_num])
+            self.plo.cont_ref_dsp = np.array(calibrant.get_calibrant(self.geo.reference).get_dSpacing()[:self.plo.cont_ref_num])
             self.draw_reference()
 
     def init_par(self, file_dump, save_default, force_write):

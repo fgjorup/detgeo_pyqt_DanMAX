@@ -17,7 +17,7 @@
  - Add all the missing detectors to the _detectors.json_ file.
 
 ## Latest updates:
-  - 2023-04-09 Update: drop a cif file onto the window to draw its contours (uses [pyFAI](https://pyfai.readthedocs.io/en/v2023.1/) and [gemmi](https://project-gemmi.github.io/python-api/gemmi.UnitCell.html])
+  - 2023-04-09 Update: drop a cif file onto the window to draw its contours (uses [pyFAI](https://pyfai.readthedocs.io/en/v2023.1/) and [gemmi](https://project-gemmi.github.io/python-api/gemmi.UnitCell.html]))
   - 2023-04-05 Update: uses pyqt6, pyqtgraph and contourpy, dropped matplotlib backend
 
 ## Older updates

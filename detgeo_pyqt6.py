@@ -23,6 +23,11 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         super().__init__(*args, **kwargs)
         
         # Drag-and-Drop cif-file
+        #  dropEvent()
+        #  - check dropped file is a cif
+        #  get_cif_reference()
+        #  - use gemmi to get cell, centring and crystal  system from cif
+        #  - use pyFAI get_d_spacings() to create contours
         self.setAcceptDrops(True)
         
         file_dump = os.path.join(os.path.dirname(__file__), 'settings.json')
@@ -78,7 +83,11 @@ class MainWindow(pg.QtWidgets.QMainWindow):
                 }
             ''')
 
-    def read_file(self, fpath):
+    def get_cif_reference(self, fpath):
+        # Drag-and-Drop cif-file
+        #  get_cif_reference()
+        #  - use gemmi to get cell, centring and crystal  system from cif
+        #  - use pyFAI get_d_spacings() to create contours
         ref = read_small_structure(fpath)
         cell = ref.cell.parameters
         lattice_type = ref.find_spacegroup().centring_type()
@@ -88,17 +97,19 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.draw_reference()
 
     def dragEnterEvent(self, event):
+        # Drag-and-Drop cif-file
         if event.mimeData().hasUrls():
             event.accept()
         else:
             event.ignore()
 
     def dropEvent(self, event):
+        # Drag-and-Drop cif-file
+        #  dropEvent()
+        #  - check dropped file is a cif
         fpath = event.mimeData().urls()[0].toLocalFile()
         if os.path.splitext(fpath)[1] == '.cif':
-            self.read_file(fpath)
-        else:
-            print(os.path.splitext(fpath))
+            self.get_cif_reference(fpath)
 
     def add_unit_label(self):
         font = QtGui.QFont()

@@ -20,6 +20,7 @@
  - far from optimized as too many contours are drawn outside the visible are (read: it's slow).
 
 ## Latest updates:
+  - 2022-04-10 Bugfix: Large angle (2-Theta > 90) contour label positions.
   - 2023-04-09 Update: drop a cif file onto the window to draw its contours (uses [pyFAI](https://pyfai.readthedocs.io/en/v2023.1/) and [gemmi](https://project-gemmi.github.io/python-api/gemmi.UnitCell.html]))
   - 2023-04-05 Update: uses pyqt6, pyqtgraph and contourpy, dropped matplotlib backend
 

@@ -172,7 +172,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.ax.getPlotItem().hideAxis('bottom')
         self.ax.getPlotItem().hideAxis('left')
         # disable pan/zoom
-        self.ax.setMouseEnabled(x=False, y=False)
+        #self.ax.setMouseEnabled(x=False, y=False)
         # disable right click  context menu
         self.ax.setMenuEnabled(False)
     
@@ -285,8 +285,6 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         plo.cont_geom_label = 8             # [int]    Contour label size
         plo.cont_geom_cmap_name = 'viridis' # [cmap]   Contour colormap (geometry)
         # - reference contour section - 
-        plo.cont_reference = True           # [bool]   Plot reference contour lines
-                                            #          e.g. a LaB6 standard
         plo.cont_ref_alpha = 0.25           # [float]  Reference contour alpha
         plo.cont_ref_color = 'gray'         # [color]  Reference contour color
         plo.cont_ref_lw = 5.0               # [float]  Reference contour linewidth
@@ -295,14 +293,15 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         plo.module_alpha = 0.20             # [float]  Detector module alpha
         plo.module_color = 'gray'           # [color]  Detector module color
         # - general section - 
-        plo.cont_reso_min = 50              # [int]    Minimum contour steps
-        plo.cont_reso_max = 500             # [int]    Maximum contour steps
+        plo.cont_reso_min = 48              # [int]    Minimum contour steps
+        plo.cont_reso_max = 256             # [int]    Maximum contour steps
         plo.plot_size = 768                 # [int]    Plot size, px
         plo.unit_label_size = 16            # [int]    Label size, px
         plo.unit_label_color = 'gray'       # [str]    Label color
         plo.unit_label_fill = 'white'       # [str]    Label fill color
         plo.plot_color = 0.35               # [float]  Button color from colormap (0.0 - 1.0)
                                             # [str]    Button color e.g. '#1f77b4'
+        # -slider section - 
         plo.action_ener = True              # [bool]   Show energy slider
         plo.action_dist = True              # [bool]   Show distance slider
         plo.action_rota = True              # [bool]   Show rotation slider
@@ -508,21 +507,21 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             X,Y,Z = self.calc_cone(X0, Y0, Z0, self.geo.rota, self.geo.tilt, self.geo.xoff, self.geo.yoff, self.geo.dist)
             # don't draw contour lines that are out of bounds
             # make sure Z is large enough to draw the contour
-            cont_gen = contour_generator(x=X, y=Y, z=Z)
             if np.max(Z) >= self.geo.dist:
-                cline = cont_gen.lines(self.geo.dist)[-1]
-                #if len(cont_gen.lines(self.geo.dist)) > 1:
-                #    print(cont_gen.lines(self.geo.dist))
-                #cline = np.vstack(cont_gen.lines(self.geo.dist))
-                self.plo.contours['exp'][_n].setData(cline, pen=pg.mkPen(self.plo.cont_cmap.map(_f, mode='qcolor'), width=self.plo.cont_geom_lw))
+                clines = contour_generator(x=X, y=Y, z=Z).lines(self.geo.dist)[-1]
+                self.plo.contours['exp'][_n].setData(clines, pen=pg.mkPen(self.plo.cont_cmap.map(_f, mode='qcolor'), width=self.plo.cont_geom_lw))
+                self.plo.contours['exp'][_n].setVisible(True)
                 # label contour lines
-                self.plo.contours['labels'][_n].setText(f'{np.round(_units[self.geo.unit],2):.2f}', color=self.plo.cont_cmap.map(_f, mode='qcolor'))
-                self.plo.contours['labels'][_n].setPos(self.geo.xoff,np.max(cline[:,1]))
+                self.plo.contours['labels'][_n].setText(f'{_units[self.geo.unit]:.2f}', color=self.plo.cont_cmap.map(_f, mode='qcolor'))
+                # find y position for label
+                # beyond 90 degree 2-theta the contour is bend 'the other way'
+                # and we need the minimum contour value to position the label
+                label_posy = np.max(clines[:,1]) if _ttd <= 90 else np.min(clines[:,1])
+                self.plo.contours['labels'][_n].setPos(self.geo.xoff, label_posy)
                 self.plo.contours['labels'][_n].setVisible(True)
             else:
                 self.plo.contours['labels'][_n].setVisible(False)
-                self.plo.contours['exp'][_n].setData([])
-                self.plo.contours['exp'][_n].clear()
+                self.plo.contours['exp'][_n].setVisible(False)
     
     def draw_reference(self):
         # calculate the offset of the contours resulting from yoff and rotation
@@ -561,10 +560,9 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             Z0 = np.sqrt(X0**2+Y0**2)*_rat
             X,Y,Z = self.calc_cone(X0, Y0, Z0, self.geo.rota, self.geo.tilt, self.geo.xoff, self.geo.yoff, self.geo.dist)
             # make sure Z is large enough to draw the contour
-            cont_gen = contour_generator(x=X, y=Y, z=Z)
             if np.max(Z) >= self.geo.dist:
-                cline = cont_gen.lines(self.geo.dist)[-1]
-                self.plo.contours['ref'][_n].setData(cline, pen=pg.mkPen(self.plo.cont_ref_color, width=self.plo.cont_ref_lw))
+                clines = contour_generator(x=X, y=Y, z=Z).lines(self.geo.dist)[-1]
+                self.plo.contours['ref'][_n].setData(clines, pen=pg.mkPen(self.plo.cont_ref_color, width=self.plo.cont_ref_lw))
                 self.plo.contours['ref'][_n].setAlpha(self.plo.cont_ref_alpha, False)
             else:
                 self.plo.contours['ref'][_n].setData([])
@@ -604,8 +602,9 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # re-calculate cones and re-draw contours
         self.draw_contours()
         # draw reference contours
-        self.get_reference()
-        self.draw_reference()
+        if self.geo.reference != 'None':
+            self.get_reference()
+            self.draw_reference()
 
     def init_par(self, file_dump, save_default, force_write):
         # fetch the geometry, detector, plot specifications and limits

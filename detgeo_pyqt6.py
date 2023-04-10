@@ -172,7 +172,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.ax.getPlotItem().hideAxis('bottom')
         self.ax.getPlotItem().hideAxis('left')
         # disable pan/zoom
-        #self.ax.setMouseEnabled(x=False, y=False)
+        self.ax.setMouseEnabled(x=False, y=False)
         # disable right click  context menu
         self.ax.setMenuEnabled(False)
     

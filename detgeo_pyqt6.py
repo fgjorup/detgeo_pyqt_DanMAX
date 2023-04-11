@@ -209,7 +209,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
 
         # figure out proper plot dimensions
         self.plo.xdim = (self.det.hms * self.det.hmn + self.det.pxs * self.det.hgp * self.det.hmn + self.det.cbh)/2
-        self.plo.ydim = (self.det.vms * self.det.vmn + self.det.pxs * self.det.vgp * self.det.vmn + self.det.cbh)/2 + self.offset_win32
+        self.plo.ydim = (self.det.vms * self.det.vmn + self.det.pxs * self.det.vgp * self.det.vmn + self.det.cbh)/2
         
         # limit the axis x and y
         self.ax.setXRange(-self.plo.xdim, self.plo.xdim, padding=0)

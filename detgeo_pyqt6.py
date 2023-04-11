@@ -34,7 +34,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # so we need to make space for it
         # no idea about other OS, if there are issues fix them here
         if sys.platform == 'win32':
-            self.offset_win32 = 30
+            self.offset_win32 = self.menuBar().height()
         else:
             self.offset_win32 = 0
         
@@ -42,7 +42,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # save parameters to file
         # - save_default: overwrite existing file with defaults
         # - force_write: overwrite existing file after load
-        self.init_par(file_dump, save_default=True, force_write=True)
+        self.init_par(file_dump, save_default=False, force_write=True)
 
         # What standards should be available as reference
         # The d spacings will be imported from pyFAI
@@ -78,7 +78,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         
         # populate the menus with detectors, references and units
         self.init_menus()
-
+        
         self.sliderWidget = SliderWidget(self, self.geo, self.plo, self.lmt)
         self.setStyleSheet('''
                 SliderWidget {
@@ -216,7 +216,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.ax.setYRange(-self.plo.ydim, self.plo.ydim, padding=0)
         
         # resize the window
-        self.resize(int(self.plo.plot_size*self.plo.xdim/self.plo.ydim), self.plo.plot_size)
+        self.resize(int(self.plo.plot_size*self.plo.xdim/self.plo.ydim), self.plo.plot_size + self.offset_win32)
 
         # scale contour grid to detector size
         multiplier = 1.5

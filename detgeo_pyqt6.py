@@ -121,7 +121,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.unit_label.setPos(-self.plo.xdim, self.plo.ydim)
 
     def init_menus(self):
-        menuBar = self.menuBar()
+        menuBar = QtWidgets.QMenuBar()
         self.setMenuBar(menuBar)
 
         menu_det = menuBar.addMenu('Detector')
@@ -172,7 +172,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.ax.getPlotItem().hideAxis('bottom')
         self.ax.getPlotItem().hideAxis('left')
         # disable pan/zoom
-        self.ax.setMouseEnabled(x=False, y=False)
+        #self.ax.setMouseEnabled(x=False, y=False)
         # disable right click  context menu
         self.ax.setMenuEnabled(False)
     
@@ -181,9 +181,13 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # container for contour lines
         self.plo.contours = {'exp':[], 'ref':[], 'labels':[]}
         # add empty plot per contour line
+        font = QtGui.QFont()
+        font.setPixelSize(self.plo.cont_geom_label_size)
+        font.setBold(True)
         for _ in range(self.plo.cont_tth_num):
             self.plo.contours['exp'].append(self.ax.plot(useCache=True, pxMode=True))
             temp_label = pg.TextItem(anchor=(0.5,0.5), fill=pg.mkBrush('w'))
+            temp_label.setFont(font)
             self.plo.contours['labels'].append(temp_label)
             self.ax.addItem(temp_label)
         
@@ -280,9 +284,8 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         plo.cont_tth_num = 24               # [int]    Number of contour lines
         plo.cont_geom_cmark = 'o'           # [marker] Beam center marker (geometry)
         plo.cont_geom_csize = 6             # [int]    Beam center size (geometry)
-        plo.cont_geom_alpha = 1.00          # [float]  Contour alpha (geometry)
         plo.cont_geom_lw = 4.0              # [float]  Contour linewidth
-        plo.cont_geom_label = 8             # [int]    Contour label size
+        plo.cont_geom_label_size = 14       # [int]    Contour label size
         plo.cont_geom_cmap_name = 'viridis' # [cmap]   Contour colormap (geometry)
         # - reference contour section - 
         plo.cont_ref_alpha = 0.25           # [float]  Reference contour alpha

@@ -20,9 +20,11 @@
  - far from optimized as too many contours are drawn outside the visible are (read: it's slow).
 
 ## Latest updates:
+  - 2023-04-10 Bugfix: Main window aspect ratio on Windows (menu bar within window).
+  - 2023-04-10 Bugfix: Label size could not be adjusted.
   - 2023-04-10 Bugfix: Large angle (2-Theta > 90) contour label positions.
-  - 2023-04-09 Update: drop a cif file onto the window to draw its contours (uses [pyFAI](https://pyfai.readthedocs.io/en/v2023.1/) and [gemmi](https://project-gemmi.github.io/python-api/gemmi.UnitCell.html])).
-  - 2023-04-05 Update: uses pyqt6, pyqtgraph and contourpy, dropped matplotlib backend.
+  - 2023-04-09 Update: Drop a cif file onto the window to draw its contours (uses [pyFAI](https://pyfai.readthedocs.io/en/v2023.1/) and [gemmi](https://project-gemmi.github.io/python-api/gemmi.UnitCell.html])).
+  - 2023-04-05 Update: Uses pyqt6, pyqtgraph and contourpy, dropped matplotlib backend.
 
 ## Older updates
   - 2023-03-23 Update: Settings are saved to (if doesn't exist) or loaded from (if exists) a 'settings.json' file.
@@ -30,8 +32,8 @@
   - 2022-06-07 Update: Added functionality to plot Standard (LaB6, CeO2, ...) contours (needs [pyFAI](https://pyfai.readthedocs.io/en/master/)).
   - 2022-04-28 Update: Changed contour line generation to accept a list of 2-theta values as input.
   - 2022-04-27 Update: Added support for [SACLA](https://sacla.xfel.jp/?lang=en) MPCCD Detectors (central hole geometry).
-  - 2022-04-25 Bugfix: calculation of the beamcenter (rotation and tilt).
-  - 2022-04-25 Bugfix: unresponsive radio buttons / redrawing the figure.
+  - 2022-04-25 Bugfix: Calculation of the beamcenter (rotation and tilt).
+  - 2022-04-25 Bugfix: Unresponsive radio buttons / redrawing the figure.
 
 ## Here's an example showing a rotated EIGER2 4M:
 ![detgeo](Sample.png)

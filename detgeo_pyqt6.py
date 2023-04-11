@@ -29,6 +29,14 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         #  - use gemmi to get cell, centring and crystal  system from cif
         #  - use pyFAI get_d_spacings() to create contours
         self.setAcceptDrops(True)
+
+        # menubar is displayed withing the window on Windows
+        # so we need to make space for it
+        # no idea about other OS, if there are issues fix them here
+        if sys.platform == 'win32':
+            self.offset_win32 = 30
+        else:
+            self.offset_win32 = 0
         
         file_dump = os.path.join(os.path.dirname(__file__), 'settings.json')
         # save parameters to file
@@ -201,7 +209,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
 
         # figure out proper plot dimensions
         self.plo.xdim = (self.det.hms * self.det.hmn + self.det.pxs * self.det.hgp * self.det.hmn + self.det.cbh)/2
-        self.plo.ydim = (self.det.vms * self.det.vmn + self.det.pxs * self.det.vgp * self.det.vmn + self.det.cbh)/2
+        self.plo.ydim = (self.det.vms * self.det.vmn + self.det.pxs * self.det.vgp * self.det.vmn + self.det.cbh)/2 + self.offset_win32
         
         # limit the axis x and y
         self.ax.setXRange(-self.plo.xdim, self.plo.xdim, padding=0)
@@ -730,7 +738,7 @@ class SliderWidget(QtWidgets.QFrame):
         self.center_frame()
 
     def center_frame(self):
-        self.move(int((self.parent().size().width()-self.box_width_dynamic)/2),0)
+        self.move(int((self.parent().size().width()-self.box_width_dynamic)/2), self.parent().offset_win32)
 
     def update_slider(self, label, value):
         label.setText(str(int(value)))

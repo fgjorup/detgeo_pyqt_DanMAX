@@ -21,6 +21,10 @@ from gemmi import read_small_structure
 class MainWindow(pg.QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # set path home
+        self.path = os.path.dirname(__file__)
+        # add an icon
+        self.setWindowIcon(QtGui.QIcon(os.path.join(self.path, 'icon.png')))
 
         # Drag-and-Drop cif-file
         #  dropEvent()
@@ -38,7 +42,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         else:
             self.offset_win32 = 0
         
-        file_dump = os.path.join(os.path.dirname(__file__), 'settings.json')
+        file_dump = os.path.join(self.path, 'settings.json')
         # save parameters to file
         # - save_default: overwrite existing file with defaults
         # - force_write: overwrite existing file after load
@@ -143,9 +147,6 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         
         # generate contour levels
         self.plo.cont_levels = np.linspace(self.plo.cont_tth_min, self.plo.cont_tth_max, self.plo.cont_tth_num)
-
-        # name the window
-        self.setWindowTitle(self.det.name)
 
         # build detector modules
         self.build_detector()
@@ -464,7 +465,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             }
         
         # make file dump
-        file_dump = os.path.join(os.path.dirname(__file__), 'detectors.json')
+        file_dump = os.path.join(self.path, 'detectors.json')
         if not os.path.exists(file_dump):
             with open(file_dump, 'w') as wf:
                 json.dump(detectors, wf, indent=4)
@@ -570,6 +571,11 @@ class MainWindow(pg.QtWidgets.QMainWindow):
                 self.plo.contours['exp'][_n].setVisible(False)
     
     def draw_reference(self):
+        # name the window
+        if self.geo.reference == 'None':
+            self.setWindowTitle(self.det.name)
+        else:
+            self.setWindowTitle(f'{self.det.name} - {self.geo.reference}')
         # calculate the offset of the contours resulting from yoff and rotation
         # shift the grid to draw the cones, to make sure the contours are drawn
         # within the visible area

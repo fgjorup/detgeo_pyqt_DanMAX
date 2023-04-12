@@ -34,7 +34,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         #  - use pyFAI get_d_spacings() to create contours
         self.setAcceptDrops(True)
 
-        # menubar is displayed withing the window on Windows
+        # menubar is displayed within the main window on Windows
         # so we need to make space for it
         # no idea about other OS, if there are issues fix them here
         if sys.platform == 'win32':

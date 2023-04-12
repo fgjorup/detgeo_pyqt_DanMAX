@@ -47,7 +47,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # What standards should be available as reference
         # The d spacings will be imported from pyFAI
         self.geo.ref_library = calibrant.names()
-        # dict to store custom referende data
+        # dict to store custom reference data
         self.geo.ref_custom = {}
 
         # define grid layout

@@ -21,7 +21,7 @@ from gemmi import read_small_structure
 class MainWindow(pg.QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
         # Drag-and-Drop cif-file
         #  dropEvent()
         #  - check dropped file is a cif
@@ -46,7 +46,9 @@ class MainWindow(pg.QtWidgets.QMainWindow):
 
         # What standards should be available as reference
         # The d spacings will be imported from pyFAI
-        self.geo.ref_pyFAI = ['None'] + calibrant.names()
+        self.geo.ref_library = calibrant.names()
+        # dict to store custom referende data
+        self.geo.ref_custom = {}
 
         # define grid layout
         self.layout = pg.QtWidgets.QGridLayout()
@@ -78,7 +80,6 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         
         # populate the menus with detectors, references and units
         self.init_menus()
-        
         self.sliderWidget = SliderWidget(self, self.geo, self.plo, self.lmt)
         self.setStyleSheet('''
                 SliderWidget {
@@ -90,88 +91,6 @@ class MainWindow(pg.QtWidgets.QMainWindow):
                     background: #aad3d3d3;
                 }
             ''')
-
-    def get_cif_reference(self, fpath):
-        # Drag-and-Drop cif-file
-        #  get_cif_reference()
-        #  - use gemmi to get cell, centring and crystal  system from cif
-        #  - use pyFAI get_d_spacings() to create contours
-        ref = read_small_structure(fpath)
-        cell = ref.cell.parameters
-        lattice_type = ref.find_spacegroup().centring_type()
-        lattice = ref.find_spacegroup().crystal_system_str()
-        self.plo.cont_ref_dsp = list(map(float, calibrant.Cell(*cell, lattice=lattice, lattice_type=lattice_type).d_spacing(dmin=0.4).keys()))[::-1][:self.plo.cont_ref_num]
-        self.geo.reference = 'Custom'
-        self.draw_reference()
-
-    def dragEnterEvent(self, event):
-        # Drag-and-Drop cif-file
-        if event.mimeData().hasUrls():
-            event.accept()
-        else:
-            event.ignore()
-
-    def dropEvent(self, event):
-        # Drag-and-Drop cif-file
-        #  dropEvent()
-        #  - check dropped file is a cif
-        fpath = event.mimeData().urls()[0].toLocalFile()
-        if os.path.splitext(fpath)[1] == '.cif':
-            self.get_cif_reference(fpath)
-
-    def add_unit_label(self):
-        font = QtGui.QFont()
-        font.setPixelSize(self.plo.unit_label_size)
-        self.unit_label = pg.TextItem(anchor=(0.0,0.0), color=self.plo.unit_label_color, fill=self.plo.unit_label_fill)
-        self.unit_label.setText(self.geo.unit_names[self.geo.unit])
-        self.unit_label.setFont(font)
-        self.ax.addItem(self.unit_label)
-        self.unit_label.setPos(-self.plo.xdim, self.plo.ydim)
-
-    def init_menus(self):
-        menuBar = QtWidgets.QMenuBar()
-        self.setMenuBar(menuBar)
-
-        menu_det = menuBar.addMenu('Detector')
-        for d in self.detectors:
-            d_menu = QtWidgets.QMenu(d, self)
-            d_menu.setStatusTip('')
-            menu_det.addMenu(d_menu)
-            for s in self.detectors[d]['size']:
-                det_action = QtGui.QAction(s, self)
-                self.set_menu_action(det_action, self.change_detector, d, s)
-                d_menu.addAction(det_action)
-        
-        menu_ref = menuBar.addMenu('Reference')
-        for ref_name in self.geo.ref_pyFAI:
-            ref_action = QtGui.QAction(ref_name, self)
-            self.set_menu_action(ref_action, self.change_reference, ref_name)
-            menu_ref.addAction(ref_action)
-
-        menu_unit = menuBar.addMenu('Units')
-        for unit_index, unit_name in enumerate(self.geo.unit_names):
-            unit_action = QtGui.QAction(unit_name, self)
-            self.set_menu_action(unit_action, self.change_units, unit_index)
-            menu_unit.addAction(unit_action)
-
-    def set_menu_action(self, action, target, *args):
-        action.triggered.connect(lambda: target(*args))
-
-    def change_reference(self, ref_name):
-        self.geo.reference = ref_name
-        self.get_reference()
-        self.draw_reference()
-
-    def change_detector(self, det_name, det_size):
-        self.det = self.get_specs_det(self.detectors, det_name, det_size)
-        self.ax.clear()
-        self.init_screen()
-        self.sliderWidget.center_frame()
-
-    def change_units(self, unit_index):
-        self.geo.unit = unit_index
-        self.unit_label.setText(self.geo.unit_names[unit_index])
-        self.draw_contours()
 
     def init_screen(self):
         # init the plot for contours and beam center
@@ -238,7 +157,121 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.draw_contours()
         self.get_reference()
         self.draw_reference()
+
+    def init_menus(self):
+        menuBar = QtWidgets.QMenuBar()
+        self.setMenuBar(menuBar)
+
+        menu_det = menuBar.addMenu('Detector')
+        group_det = QtGui.QActionGroup(self)
+        group_det.setExclusive(True)
+
+        # menu Detectors
+        for d in self.detectors:
+            d = d.upper()
+            d_menu = QtWidgets.QMenu(d, self)
+            d_menu.setStatusTip('')
+            menu_det.addMenu(d_menu)
+            for s in self.detectors[d]['size']:
+                s = s.upper()
+                det_action = QtGui.QAction(s, self, checkable=True)
+                self.set_menu_action(det_action, self.change_detector, d, s)
+                d_menu.addAction(det_action)
+                group_det.addAction(det_action)
+                if d == self.geo.det_type.upper() and s == self.geo.det_size.upper():
+                    det_action.setChecked(True)
         
+        self.menu_ref = menuBar.addMenu('Reference')
+        self.group_ref = QtGui.QActionGroup(self)
+        self.group_ref.setExclusive(True)
+        
+        # menu Reference: add None
+        ref_action = QtGui.QAction('None', self, checkable=True)
+        self.set_menu_action(ref_action, self.change_reference, 'None')
+        self.menu_ref.addAction(ref_action)
+        self.group_ref.addAction(ref_action)
+        if 'None' == self.geo.reference:
+            ref_action.setChecked(True)
+        
+        # menu Reference: add pyFAI library
+        self.sub_menu_pyFAI = QtWidgets.QMenu('pyFAI', self)
+        self.sub_menu_pyFAI.setStatusTip('')
+        self.menu_ref.addMenu(self.sub_menu_pyFAI)
+        for ref_name in self.geo.ref_library:
+            ref_action = QtGui.QAction(ref_name, self, checkable=True)
+            self.set_menu_action(ref_action, self.change_reference, ref_name)
+            self.sub_menu_pyFAI.addAction(ref_action)
+            self.group_ref.addAction(ref_action)
+            if ref_name == self.geo.reference:
+                ref_action.setChecked(True)
+
+        # menu Reference: add Custom
+        self.sub_menu_custom = QtWidgets.QMenu('Custom', self)
+        self.sub_menu_custom.setStatusTip('Drag and Drop *.cif files.')
+        self.menu_ref.addMenu(self.sub_menu_custom)
+        
+        # menu Units
+        menu_unit = menuBar.addMenu('Units')
+        group_unit = QtGui.QActionGroup(self)
+        group_unit.setExclusive(True)
+        for unit_index, unit_name in enumerate(self.geo.unit_names):
+            unit_action = QtGui.QAction(unit_name, self, checkable=True)
+            self.set_menu_action(unit_action, self.change_units, unit_index)
+            menu_unit.addAction(unit_action)
+            group_unit.addAction(unit_action)
+            if unit_index == self.geo.unit:
+                unit_action.setChecked(True)
+
+    def add_unit_label(self):
+        font = QtGui.QFont()
+        font.setPixelSize(self.plo.unit_label_size)
+        self.unit_label = pg.TextItem(anchor=(0.0,0.0), color=self.plo.unit_label_color, fill=self.plo.unit_label_fill)
+        self.unit_label.setText(self.geo.unit_names[self.geo.unit])
+        self.unit_label.setFont(font)
+        self.ax.addItem(self.unit_label)
+        self.unit_label.setPos(-self.plo.xdim, self.plo.ydim)
+
+    def set_menu_action(self, action, target, *args):
+        action.triggered.connect(lambda: target(*args))
+
+    def change_detector(self, det_name, det_size):
+        self.det = self.get_specs_det(self.detectors, det_name, det_size)
+        self.ax.clear()
+        self.init_screen()
+        self.sliderWidget.center_frame()
+
+    def change_units(self, unit_index):
+        self.geo.unit = unit_index
+        self.unit_label.setText(self.geo.unit_names[unit_index])
+        self.draw_contours()
+
+    def change_reference(self, ref_name):
+        self.geo.reference = ref_name
+        self.get_reference()
+        self.draw_reference()
+
+    def get_cif_reference(self, fpath):
+        # Drag-and-Drop cif-file
+        #  get_cif_reference()
+        #  - use gemmi to get cell, centring and crystal  system from cif
+        #  - use pyFAI get_d_spacings() to create contours
+        ref = read_small_structure(fpath)
+        cell = ref.cell.parameters
+        lattice_type = ref.find_spacegroup().centring_type()
+        lattice = ref.find_spacegroup().crystal_system_str()
+        
+        self.plo.cont_ref_dsp = list(map(float, calibrant.Cell(*cell, lattice=lattice, lattice_type=lattice_type).d_spacing(dmin=0.4).keys()))[::-1][:self.plo.cont_ref_num]
+        self.geo.reference = os.path.basename(fpath)
+        self.geo.ref_custom[self.geo.reference] = self.plo.cont_ref_dsp
+
+        ref_action = QtGui.QAction(self.geo.reference, self, checkable=True)
+        self.set_menu_action(ref_action, self.change_reference, self.geo.reference)
+        self.sub_menu_custom.addAction(ref_action)
+        self.group_ref.addAction(ref_action)
+        ref_action.setChecked(True)
+
+        self.draw_reference()
+
     def get_colormap(self):
         # figure out the color of the buttons and slider handles
         # get colormap
@@ -251,10 +284,12 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             self.plo.plot_handle_color = self.plo.plot_color
     
     def get_reference(self):
-        if self.geo.reference != 'None':
-            if self.geo.reference != 'Custom':
-                # get the d spacings for the calibrtant from pyFAI
-                self.plo.cont_ref_dsp = np.array(calibrant.get_calibrant(self.geo.reference).get_dSpacing()[:self.plo.cont_ref_num])
+        if self.geo.reference in self.geo.ref_library:
+            # get the d spacings for the calibrtant from pyFAI
+            self.plo.cont_ref_dsp = np.array(calibrant.get_calibrant(self.geo.reference).get_dSpacing()[:self.plo.cont_ref_num])
+        elif self.geo.reference in self.geo.ref_custom:
+            # get custom d spacings
+            self.plo.cont_ref_dsp = self.geo.ref_custom[self.geo.reference]
         else:
             # set all d-spacings to -1
             self.plo.cont_ref_dsp = np.zeros(self.plo.cont_ref_num) -1
@@ -264,7 +299,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # Setup the geometry #
         ######################
         geo = container()
-        geo.det_type = 'Eiger2' # [str]  Pilatus3 / Eiger2
+        geo.det_type = 'EIGER2' # [str]  Pilatus3 / Eiger2
         geo.det_size = '4M'     # [str]  300K 1M 2M 6M / 1M 4M 9M 16M
         geo.ener = 21.0         # [keV]  Beam energy
         geo.dist = 75.0         # [mm]   Detector distance
@@ -349,28 +384,28 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         return lmt
 
     def get_specs_det(self, detectors, det_type, det_size):
-            det_type = det_type.upper()
-            det_size = det_size.upper()
+        det_type = det_type.upper()
+        det_size = det_size.upper()
 
-            if det_type not in detectors.keys():
-                print('Unknown detector type!')
-                raise SystemExit
-            
-            if det_size not in detectors[det_type]['size'].keys():
-                print('Unknown detector type/size combination!')
-                raise SystemExit
-            
-            det = container()
-            det.hms = detectors[det_type]['hms']
-            det.vms = detectors[det_type]['vms']
-            det.pxs = detectors[det_type]['pxs']
-            det.hgp = detectors[det_type]['hgp']
-            det.vgp = detectors[det_type]['vgp']
-            det.cbh = detectors[det_type]['cbh']
-            det.hmn, det.vmn = detectors[det_type]['size'][det_size]
-            det.name = f'{det_type} {det_size}'
+        if det_type not in detectors.keys():
+            print('Unknown detector type!')
+            raise SystemExit
+        
+        if det_size not in detectors[det_type]['size'].keys():
+            print('Unknown detector type/size combination!')
+            raise SystemExit
+        
+        det = container()
+        det.hms = detectors[det_type]['hms']
+        det.vms = detectors[det_type]['vms']
+        det.pxs = detectors[det_type]['pxs']
+        det.hgp = detectors[det_type]['hgp']
+        det.vgp = detectors[det_type]['vgp']
+        det.cbh = detectors[det_type]['cbh']
+        det.hmn, det.vmn = detectors[det_type]['size'][det_size]
+        det.name = f'{det_type} {det_size}'
 
-            return det
+        return det
 
     def get_det_library(self):
         ###########################
@@ -593,29 +628,40 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         comp = np.deg2rad(tilt) * dist
         return Y+xoff,X+comp-yoff,Z
 
-    def update_screen(self, nam, val):
-        if nam == 'dist':
+    def update_screen(self, val):
+        if self.sender().objectName() == 'dist':
             self.geo.dist = float(val)
-        elif nam == 'rota':
+        elif self.sender().objectName() == 'rota':
             self.geo.rota = float(val)
-        elif nam == 'tilt':
+        elif self.sender().objectName() == 'tilt':
             self.geo.tilt = float(val)
-        elif nam == 'yoff':
+        elif self.sender().objectName() == 'yoff':
             self.geo.yoff = float(val)
-        elif nam == 'xoff':
+        elif self.sender().objectName() == 'xoff':
             self.geo.xoff = float(val)
-        elif nam == 'unit':
-            self.geo.unit = int(val)
-        elif nam == 'ener':
+        elif self.sender().objectName() == 'ener':
             self.geo.ener = float(val)
-        elif nam == 'ref':
-            self.geo.reference = str(val)
         # re-calculate cones and re-draw contours
         self.draw_contours()
         # draw reference contours
         if self.geo.reference != 'None':
             self.get_reference()
             self.draw_reference()
+
+    def dragEnterEvent(self, event):
+        # Drag-and-Drop cif-file
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        # Drag-and-Drop cif-file
+        #  dropEvent()
+        #  - check dropped file is a cif
+        fpath = event.mimeData().urls()[0].toLocalFile()
+        if os.path.splitext(fpath)[1] == '.cif':
+            self.get_cif_reference(fpath)
 
     def init_par(self, file_dump, save_default, force_write):
         # fetch the geometry, detector, plot specifications and limits
@@ -643,11 +689,11 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             json.dump({'geo':self.geo.__dict__, 'plo':self.plo.__dict__, 'lmt':self.lmt.__dict__}, wf, indent=4)
 
     def load_par(self, save_as):
-            # Opening JSON file as dict
-            with open(save_as, 'r') as of:
-                pars = json.load(of)
-            conv = {'geo':self.geo, 'plo':self.plo, 'lmt':self.lmt}
-            for key, vals in pars.items():
+        # Opening JSON file as dict
+        with open(save_as, 'r') as of:
+            pars = json.load(of)
+        conv = {'geo':self.geo, 'plo':self.plo, 'lmt':self.lmt}
+        for key, vals in pars.items():
                 for p, x in vals.items():
                     setattr(conv[key], p, x)
 
@@ -692,48 +738,30 @@ class SliderWidget(QtWidgets.QFrame):
         
         _idx = 0
         if plo.action_ener:
-            sli_ener, lab_ener_name, lab_ener_value = self.add_slider(grid, 'Energy\n[keV]', 'Energy [keV] ', _idx)
-            sli_ener.valueChanged.connect(lambda: parent.update_screen('ener', sli_ener.value()))
-            sli_ener.valueChanged.connect(lambda: self.update_slider(lab_ener_value, sli_ener.value()))
-            self.set_slider(sli_ener, self.geo.ener, lmt.ener_min, lmt.ener_max, lmt.ener_stp)
+            self.add_slider(grid, 'Energy\n[keV]', 'ener', _idx, self.geo.ener, lmt.ener_min, lmt.ener_max, lmt.ener_stp)
             self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_dist:
-            sli_dist, lab_dist_name, lab_dist_value = self.add_slider(grid, 'Distance\n[mm]', 'Distance [mm] ', _idx)
-            sli_dist.valueChanged.connect(lambda: parent.update_screen('dist', sli_dist.value()))
-            sli_dist.valueChanged.connect(lambda: self.update_slider(lab_dist_value, sli_dist.value()))
-            self.set_slider(sli_dist, self.geo.dist, lmt.dist_min, lmt.dist_max, lmt.dist_stp)
+            self.add_slider(grid, 'Distance\n[mm]', 'dist', _idx, self.geo.dist, lmt.dist_min, lmt.dist_max, lmt.dist_stp)
             self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_yoff:
-            sli_yoff, lab_yoff_name, lab_yoff_value = self.add_slider(grid, 'Y offset\n[mm]', 'Y offset [mm] ', _idx)
-            sli_yoff.valueChanged.connect(lambda: parent.update_screen('yoff', sli_yoff.value()))
-            sli_yoff.valueChanged.connect(lambda: self.update_slider(lab_yoff_value, sli_yoff.value()))
-            self.set_slider(sli_yoff, self.geo.yoff, lmt.yoff_min, lmt.yoff_max, lmt.yoff_stp)
+            self.add_slider(grid, 'Y offset\n[mm]', 'yoff', _idx, self.geo.yoff, lmt.yoff_min, lmt.yoff_max, lmt.yoff_stp)
             self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_xoff:
-            sli_xoff, lab_xoff_name, lab_xoff_value = self.add_slider(grid, 'X offset\n[mm]', 'X offset [mm] ', _idx)
-            sli_xoff.valueChanged.connect(lambda: parent.update_screen('xoff', sli_xoff.value()))
-            sli_xoff.valueChanged.connect(lambda: self.update_slider(lab_xoff_value, sli_xoff.value()))
-            self.set_slider(sli_xoff, self.geo.xoff, lmt.xoff_min, lmt.xoff_max, lmt.xoff_stp)
+            self.add_slider(grid, 'X offset\n[mm]', 'xoff', _idx, self.geo.xoff, lmt.xoff_min, lmt.xoff_max, lmt.xoff_stp)
             self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_tilt:
-            sli_tilt, lab_tilt_name, lab_tilt_value = self.add_slider(grid, 'Tilt\n[˚]', 'Tilt [˚] ', _idx)
-            sli_tilt.valueChanged.connect(lambda: parent.update_screen('tilt', sli_tilt.value()))
-            sli_tilt.valueChanged.connect(lambda: self.update_slider(lab_tilt_value, sli_tilt.value()))
-            self.set_slider(sli_tilt, self.geo.tilt, lmt.tilt_min, lmt.tilt_max, lmt.tilt_stp)
+            self.add_slider(grid, 'Tilt\n[˚]', 'tilt', _idx, self.geo.tilt, lmt.tilt_min, lmt.tilt_max, lmt.tilt_stp)
             self.box_width_dynamic += self.box_width_add
             _idx += 1
         if plo.action_rota:
-            sli_rota, lab_rota_name, lab_rota_value = self.add_slider(grid, 'Rotation\n[˚]', 'Rotation [˚] ', _idx)
-            sli_rota.valueChanged.connect(lambda: parent.update_screen('rota', sli_rota.value()))
-            sli_rota.valueChanged.connect(lambda: self.update_slider(lab_rota_value, sli_rota.value()))
-            self.set_slider(sli_rota, self.geo.rota, lmt.rota_min, lmt.rota_max, lmt.rota_stp)
+            self.add_slider(grid, 'Rotation\n[˚]', 'rota', _idx, self.geo.rota, lmt.rota_min, lmt.rota_max, lmt.rota_stp)
             self.box_width_dynamic += self.box_width_add
             _idx += 1
-
+        
         self.resize(self.box_width_dynamic, self.box_height_hide)
         self.center_frame()
 
@@ -743,26 +771,27 @@ class SliderWidget(QtWidgets.QFrame):
     def update_slider(self, label, value):
         label.setText(str(int(value)))
 
-    def add_slider(self, layout, label, hint, idx):
+    def add_slider(self, layout, label, token, idx, lval, lmin, lmax, lstp):
         label_name = QtWidgets.QLabel(label)
-        label_name.setToolTip(hint)
         label_name.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label_name, 0, idx, QtCore.Qt.AlignmentFlag.AlignCenter)
-        slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Vertical)
-        slider.setValue(999)
-        slider.setToolTip(hint)
-        layout.addWidget(slider, 1, idx, QtCore.Qt.AlignmentFlag.AlignHCenter)
+        
         label_value = QtWidgets.QLabel()
-        label_value.setToolTip(hint)
         label_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label_value, 2, idx, QtCore.Qt.AlignmentFlag.AlignCenter)
-        return slider, label_name, label_value
 
-    def set_slider(self, slider, val, vmin, vmax, step):
-        slider.setRange(int(vmin), int(vmax))
-        slider.setSingleStep(int(step))
-        slider.setPageStep(int(step))
-        slider.setValue(int(val))
+        slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Vertical, objectName=token)
+        slider.setValue(999)
+        slider.valueChanged.connect(self.parent().update_screen)
+        slider.valueChanged.connect(lambda value: self.update_slider(label_value, value))
+        slider.setRange(int(lmin), int(lmax))
+        slider.setSingleStep(int(lstp))
+        slider.setPageStep(int(lstp))
+        slider.setValue(int(lval))
+        
+        layout.addWidget(label_name, 0, idx, QtCore.Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(slider, 1, idx, QtCore.Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(label_value, 2, idx, QtCore.Qt.AlignmentFlag.AlignCenter)
+
+        return slider
 
     def toggle_panel(self, event):
         if type(event) == QtGui.QEnterEvent:

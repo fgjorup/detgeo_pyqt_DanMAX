@@ -103,7 +103,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.ax.getPlotItem().hideAxis('bottom')
         self.ax.getPlotItem().hideAxis('left')
         # disable pan/zoom
-        self.ax.setMouseEnabled(x=False, y=False)
+        #self.ax.setMouseEnabled(x=False, y=False)
         # disable right click  context menu
         self.ax.setMenuEnabled(False)
     
@@ -137,6 +137,13 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # limit the axis x and y
         self.ax.setXRange(-self.plo.xdim, self.plo.xdim, padding=0)
         self.ax.setYRange(-self.plo.ydim, self.plo.ydim, padding=0)
+        # self.ax.setLimits(minXRange=self.plo.xdim*2,
+        #                   minYRange=self.plo.ydim*2)
+        self.ax.setLimits(xMin=-self.plo.xdim*1.05,
+                          xMax= self.plo.xdim*1.05,
+                          yMin=-self.plo.ydim*1.05,
+                          yMax= self.plo.ydim*1.05)
+
         
         # resize the window
         self.resize(int(self.plo.plot_size*self.plo.xdim/self.plo.ydim), self.plo.plot_size + self.offset_win32)

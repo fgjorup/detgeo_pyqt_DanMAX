@@ -20,7 +20,7 @@
  - far from optimized as too many contours are drawn outside the visible are (read: it's slow).
 
 ## Latest updates:
-  - 2023-04-20 Bugfix: Confined slider window mobility main window area.
+  - 2023-04-20 Bugfix: Confined slider window mobility to main window area.
   - 2023-04-10 Bugfix: Main window aspect ratio on Windows (menu bar within window).
   - 2023-04-10 Bugfix: Label size could not be adjusted.
   - 2023-04-10 Bugfix: Large angle (2-Theta > 90) contour label positions.

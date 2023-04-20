@@ -827,8 +827,28 @@ class SliderWidget(QtWidgets.QFrame):
 
     def mouseMoveEvent(self, event):
         if event.buttons() == QtCore.Qt.MouseButton.LeftButton:
+            # relative movement
             delta = event.pos() - self.startPos
+            # window limits
+            lim = QtCore.QPoint(self.parent().size().width() - self.size().width(),
+                                self.parent().size().height() - self.size().height())
+            # new temporary position
+            _pos = self.pos() + delta
+            # x small
+            if _pos.x() < 0:
+                delta.setX(-self.pos().x())
+            # x large
+            if (lim - _pos).x() < 0:
+                delta.setX(lim.x() - self.pos().x())
+            # y small
+            if _pos.y() < 0:
+                delta.setY(-self.pos().y())
+            # y large
+            if (lim - _pos).y() < 0:
+                delta.setY(lim.y() - self.pos().y())
+            # move window to new position
             self.move(self.pos() + delta)
+            # keep the box open after dragging
             self.box_toggle = True
 
 def main():
